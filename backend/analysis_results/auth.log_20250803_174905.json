@@ -1,0 +1,210 @@
+{
+  "success": true,
+  "filename": "auth.log",
+  "parsing_stats": {
+    "total_lines": 385,
+    "parsed_lines": 385,
+    "error_lines": 0,
+    "success_rate": 100.0,
+    "log_type": "Apache/Nginx Access Log"
+  },
+  "summary": {
+    "basic_stats": {
+      "total_requests": 385,
+      "unique_ips": 3,
+      "unique_urls": 1,
+      "date_range": {
+        "start": "2025-08-03T17:49:05.510067",
+        "end": "2025-08-03T17:49:05.526143"
+      }
+    },
+    "status_distribution": {
+      "0": 385
+    },
+    "method_distribution": {
+      "MAR": 385
+    },
+    "top_ips": {
+      "65.2.161.68": 214,
+      "unknown": 170,
+      "203.101.190.9": 1
+    },
+    "top_urls": {
+      "6": 385
+    },
+    "top_user_agents": {
+      "": 385
+    },
+    "error_analysis": {
+      "total_errors": 0,
+      "error_rate": 0.0,
+      "4xx_errors": 0,
+      "5xx_errors": 0
+    },
+    "security_analysis": {
+      "suspicious_requests": 0,
+      "threat_levels": {
+        "low": 385
+      },
+      "attack_types": {},
+      "suspicious_ips": {}
+    },
+    "traffic_patterns": {
+      "hourly_distribution": {
+        "17": 385
+      },
+      "daily_distribution": {
+        "6": 385
+      },
+      "file_types": {
+        "none": 385
+      }
+    }
+  },
+  "threats": {
+    "message": "No threats detected"
+  },
+  "sample_data": [
+    {
+      "ip": "unknown",
+      "timestamp": "2025-08-03 17:49:05.510067",
+      "timestamp_str": "1119",
+      "request": "Mar  6 06:18:01 ip-172-31-35-28 CRON[1119]: pam_unix(cron:session): session opened for user confluence(uid=998) by (uid=0)",
+      "status_code": 0,
+      "response_size": 0,
+      "referer": "",
+      "user_agent": "",
+      "response_time": 0,
+      "method": "MAR",
+      "url": "6",
+      "protocol": "06:18:01",
+      "query_params": "",
+      "threat_level": "low",
+      "request_type": "normal",
+      "is_suspicious": false,
+      "attack_indicators": [],
+      "line_number": 1,
+      "raw_line": "Mar  6 06:18:01 ip-172-31-35-28 CRON[1119]: pam_unix(cron:session): session opened for user confluence(uid=998) by (uid=0)",
+      "hour": 17,
+      "day_of_week": 6,
+      "date": "2025-08-03",
+      "is_private_ip": false,
+      "ip_class": "invalid",
+      "file_extension": "none",
+      "size_category": NaN
+    },
+    {
+      "ip": "unknown",
+      "timestamp": "2025-08-03 17:49:05.510067",
+      "timestamp_str": "1118",
+      "request": "Mar  6 06:18:01 ip-172-31-35-28 CRON[1118]: pam_unix(cron:session): session opened for user confluence(uid=998) by (uid=0)",
+      "status_code": 0,
+      "response_size": 0,
+      "referer": "",
+      "user_agent": "",
+      "response_time": 0,
+      "method": "MAR",
+      "url": "6",
+      "protocol": "06:18:01",
+      "query_params": "",
+      "threat_level": "low",
+      "request_type": "normal",
+      "is_suspicious": false,
+      "attack_indicators": [],
+      "line_number": 2,
+      "raw_line": "Mar  6 06:18:01 ip-172-31-35-28 CRON[1118]: pam_unix(cron:session): session opened for user confluence(uid=998) by (uid=0)",
+      "hour": 17,
+      "day_of_week": 6,
+      "date": "2025-08-03",
+      "is_private_ip": false,
+      "ip_class": "invalid",
+      "file_extension": "none",
+      "size_category": NaN
+    },
+    {
+      "ip": "unknown",
+      "timestamp": "2025-08-03 17:49:05.510067",
+      "timestamp_str": "1117",
+      "request": "Mar  6 06:18:01 ip-172-31-35-28 CRON[1117]: pam_unix(cron:session): session opened for user confluence(uid=998) by (uid=0)",
+      "status_code": 0,
+      "response_size": 0,
+      "referer": "",
+      "user_agent": "",
+      "response_time": 0,
+      "method": "MAR",
+      "url": "6",
+      "protocol": "06:18:01",
+      "query_params": "",
+      "threat_level": "low",
+      "request_type": "normal",
+      "is_suspicious": false,
+      "attack_indicators": [],
+      "line_number": 3,
+      "raw_line": "Mar  6 06:18:01 ip-172-31-35-28 CRON[1117]: pam_unix(cron:session): session opened for user confluence(uid=998) by (uid=0)",
+      "hour": 17,
+      "day_of_week": 6,
+      "date": "2025-08-03",
+      "is_private_ip": false,
+      "ip_class": "invalid",
+      "file_extension": "none",
+      "size_category": NaN
+    },
+    {
+      "ip": "unknown",
+      "timestamp": "2025-08-03 17:49:05.510067",
+      "timestamp_str": "1118",
+      "request": "Mar  6 06:18:01 ip-172-31-35-28 CRON[1118]: pam_unix(cron:session): session closed for user confluence",
+      "status_code": 0,
+      "response_size": 0,
+      "referer": "",
+      "user_agent": "",
+      "response_time": 0,
+      "method": "MAR",
+      "url": "6",
+      "protocol": "06:18:01",
+      "query_params": "",
+      "threat_level": "low",
+      "request_type": "normal",
+      "is_suspicious": false,
+      "attack_indicators": [],
+      "line_number": 4,
+      "raw_line": "Mar  6 06:18:01 ip-172-31-35-28 CRON[1118]: pam_unix(cron:session): session closed for user confluence",
+      "hour": 17,
+      "day_of_week": 6,
+      "date": "2025-08-03",
+      "is_private_ip": false,
+      "ip_class": "invalid",
+      "file_extension": "none",
+      "size_category": NaN
+    },
+    {
+      "ip": "unknown",
+      "timestamp": "2025-08-03 17:49:05.510067",
+      "timestamp_str": "1119",
+      "request": "Mar  6 06:18:01 ip-172-31-35-28 CRON[1119]: pam_unix(cron:session): session closed for user confluence",
+      "status_code": 0,
+      "response_size": 0,
+      "referer": "",
+      "user_agent": "",
+      "response_time": 0,
+      "method": "MAR",
+      "url": "6",
+      "protocol": "06:18:01",
+      "query_params": "",
+      "threat_level": "low",
+      "request_type": "normal",
+      "is_suspicious": false,
+      "attack_indicators": [],
+      "line_number": 5,
+      "raw_line": "Mar  6 06:18:01 ip-172-31-35-28 CRON[1119]: pam_unix(cron:session): session closed for user confluence",
+      "hour": 17,
+      "day_of_week": 6,
+      "date": "2025-08-03",
+      "is_private_ip": false,
+      "ip_class": "invalid",
+      "file_extension": "none",
+      "size_category": NaN
+    }
+  ],
+  "timestamp": "2025-08-03T17:49:05.543413"
+}
