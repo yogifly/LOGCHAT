@@ -38,6 +38,7 @@ function App() {
 }}>
   {JSON.stringify(logs, null, 2)}
 </pre>
+
     </div>
   );
 }
