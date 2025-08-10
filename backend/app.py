@@ -5,6 +5,11 @@ import datetime
 from dotenv import load_dotenv
 import os
 import google.generativeai as genai
+import nltk
+from nltk.tokenize import word_tokenize
+
+# Download NLTK resources at startup (only needs to run once)
+nltk.download('punkt')
 
 load_dotenv()
 
@@ -22,35 +27,95 @@ def detect_log_type(line):
         return 'Windows'
     return 'Unknown'
 
+def clean_and_tokenize(line):
+    tokens = word_tokenize(line)
+    tokens = [t for t in tokens if t.isalnum() or t in [':', '[', ']', '-', '.', ',', '/']]
+    return tokens
+
 def parse_apache(line):
-    match = re.search(r'\[(.*?)\] \[(\w+)\] (.+)', line)
-    if match:
-        timestamp = match.group(1)
-        level = match.group(2).upper()
-        message = match.group(3)
-        return {"source": "Apache", "timestamp": timestamp, "level": level, "message": message, "raw": line}
-    return {"source": "Apache", "timestamp": "", "level": "INFO", "message": line, "raw": line}
+    tokens = clean_and_tokenize(line)
+    timestamp = ""
+    level = "INFO"
+    message = ""
+    # Find timestamp in tokens
+    if '[' in tokens and ']' in tokens:
+        try:
+            start = tokens.index('[')
+            end = tokens.index(']')
+            timestamp = ' '.join(tokens[start+1:end])
+        except:
+            timestamp = ""
+    # Find log level
+    levels = ['error', 'notice', 'warn', 'info', 'debug']
+    for l in levels:
+        if l in tokens:
+            level = l.upper()
+            break
+    # Message is everything after the last ']'
+    try:
+        last_bracket = max(idx for idx, t in enumerate(tokens) if t == ']')
+        message = ' '.join(tokens[last_bracket+1:])
+    except:
+        message = ' '.join(tokens)
+    return {
+        "source": "Apache",
+        "timestamp": timestamp,
+        "level": level,
+        "message": message.strip(),
+        "raw": line
+    }
 
 def parse_windows(line):
+    tokens = clean_and_tokenize(line)
+    timestamp = ""
+    level = "INFO"
+    message = ""
+    # Timestamp is usually the first token(s)
+    if len(tokens) > 2 and tokens[0].count('-') == 2:
+        timestamp = tokens[0]
+    # Level is often 'info', 'warning', 'error'
+    levels = ['info', 'warning', 'error']
+    for l in levels:
+        if l in tokens:
+            level = l.upper()
+            break
+    # Message is everything after the level
     try:
-        parts = line.split(',')
-        timestamp = parts[0].strip()
-        level = parts[1].strip().upper()
-        message = ','.join(parts[2:]).strip()
-        return {"source": "Windows", "timestamp": timestamp, "level": level, "message": message, "raw": line}
+        level_idx = next(idx for idx, t in enumerate(tokens) if t.lower() == level.lower())
+        message = ' '.join(tokens[level_idx+1:])
     except:
-        return {"source": "Windows", "timestamp": "", "level": "INFO", "message": line, "raw": line}
+        message = ' '.join(tokens)
+    return {
+        "source": "Windows",
+        "timestamp": timestamp,
+        "level": level,
+        "message": message.strip(),
+        "raw": line
+    }
 
 def parse_auth(line):
-    match = re.match(r'(\w{3} \d+ \d+:\d+:\d+)', line)
-    timestamp = match.group(1) if match else ""
+    tokens = clean_and_tokenize(line)
+    timestamp = ""
     level = "INFO"
-    if "failed" in line.lower():
+    message = ""
+    # Timestamp is usually first 3 tokens (e.g., Mar 6 06:18:01)
+    if len(tokens) >= 3:
+        timestamp = ' '.join(tokens[:3])
+    # Level detection
+    if "failed" in tokens or "error" in tokens:
         level = "ERROR"
-    elif "accepted" in line.lower():
+    elif "accepted" in tokens or "success" in tokens:
         level = "SUCCESS"
-    message = line.split("sshd")[-1].strip() if "sshd" in line else line
-    return {"source": "Auth", "timestamp": timestamp, "level": level.upper(), "message": message, "raw": line}
+    # Message is everything after timestamp
+    message = ' '.join(tokens[3:])
+    return {
+        "source": "Auth",
+        "timestamp": timestamp,
+        "level": level.upper(),
+        "message": message.strip(),
+        "raw": line
+    }
+
 @app.route('/upload', methods=['POST'])
 def upload_file():
     if 'file' not in request.files:
@@ -82,7 +147,7 @@ def upload_file():
 
 def analyze_with_gemini(parsed_logs):
     import json
-    model = genai.GenerativeModel("gemini-2.5-flash")
+    model = genai.GenerativeModel("gemini-2.5-pro")
 
     log_lines = "\n".join(
         f"{log['timestamp']} | {log['source']} | {log['level']} | {log['message']}"
@@ -99,7 +164,7 @@ Analyze them and return a JSON object with the following fields:
 - "recommendations": Suggestions to fix or improve
 - "threat_level": Low / Medium / High based on logs
 
-Respond ONLY in valid JSON format.
+Respond ONLY in valid JSON format. Do NOT include markdown code fences.
 
 Logs:
 {log_lines}
@@ -109,14 +174,29 @@ Logs:
         response = model.generate_content(prompt)
         response_text = response.text.strip()
 
-        # 🧽 Remove ```json or ``` wrappers if present
+        # Remove ```json ... ``` wrappers if they exist
         if response_text.startswith("```"):
-            response_text = re.sub(r"^```(json)?\n?", "", response_text)
-            response_text = re.sub(r"\n?```$", "", response_text)
+            response_text = re.sub(r"^```(?:json)?", "", response_text.strip(), flags=re.IGNORECASE)
+            response_text = re.sub(r"```$", "", response_text.strip())
 
+        # Extra cleanup of leading/trailing whitespace or newlines
+        response_text = response_text.strip()
+
+        # Parse into Python dict
         return json.loads(response_text)
+
+    except json.JSONDecodeError as e:
+        return {
+            "error": "Gemini returned invalid JSON",
+            "raw_response": response.text if 'response' in locals() else None,
+            "exception": str(e)
+        }
     except Exception as e:
-        return {"error": "Gemini response couldn't be parsed", "raw_response": response.text}
+        return {
+            "error": "Unexpected error",
+            "exception": str(e)
+        }
+
 
 if __name__ == '__main__':
     app.run(debug=True)
