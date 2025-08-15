@@ -147,7 +147,7 @@ def upload_file():
 
 def analyze_with_gemini(parsed_logs):
     import json
-    model = genai.GenerativeModel("gemini-2.5-pro")
+    model = genai.GenerativeModel("gemini-2.5-flash")
 
     log_lines = "\n".join(
         f"{log['timestamp']} | {log['source']} | {log['level']} | {log['message']}"
@@ -172,23 +172,34 @@ Logs:
 
     try:
         response = model.generate_content(prompt)
-        response_text = response.text.strip()
+
+        # 🔹 Debug print of raw Gemini response
+        print("\n========== RAW GEMINI RESPONSE ==========")
+        print(response)
+        print("=========================================\n")
+
+        # Use safe text extraction
+        response_text = ""
+        if hasattr(response, "text") and response.text:
+            response_text = response.text.strip()
+        elif hasattr(response, "candidates") and response.candidates:
+            parts = response.candidates[0].content.parts
+            if parts and hasattr(parts[0], "text"):
+                response_text = parts[0].text.strip()
 
         # Remove ```json ... ``` wrappers if they exist
         if response_text.startswith("```"):
             response_text = re.sub(r"^```(?:json)?", "", response_text.strip(), flags=re.IGNORECASE)
             response_text = re.sub(r"```$", "", response_text.strip())
 
-        # Extra cleanup of leading/trailing whitespace or newlines
         response_text = response_text.strip()
 
-        # Parse into Python dict
         return json.loads(response_text)
 
     except json.JSONDecodeError as e:
         return {
             "error": "Gemini returned invalid JSON",
-            "raw_response": response.text if 'response' in locals() else None,
+            "raw_response": str(response) if 'response' in locals() else None,
             "exception": str(e)
         }
     except Exception as e:
@@ -196,6 +207,7 @@ Logs:
             "error": "Unexpected error",
             "exception": str(e)
         }
+
 
 
 if __name__ == '__main__':
