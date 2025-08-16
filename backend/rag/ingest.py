@@ -3,6 +3,8 @@ from langchain_core.documents import Document
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from .vector import get_vectorstore
 import hashlib
+import asyncio
+
 
 def build_documents(parsed_logs: List[Dict]) -> List[Document]:
     docs = []
@@ -20,6 +22,7 @@ def build_documents(parsed_logs: List[Dict]) -> List[Document]:
         # this text is what will be embedded/searched
         docs.append(Document(page_content=content, metadata=metadata))
     return docs
+
 
 def chunk_documents(docs: List[Document]) -> List[Document]:
     splitter = RecursiveCharacterTextSplitter(
@@ -40,13 +43,23 @@ def ingest_parsed_logs(parsed_logs: List[Dict]) -> int:
         return 0
 
     chunks = chunk_documents(docs)
+
+    # ✅ Ensure asyncio loop exists (fix for Flask threads)
+    try:
+        asyncio.get_running_loop()
+    except RuntimeError:
+        asyncio.set_event_loop(asyncio.new_event_loop())
+
     vs = get_vectorstore()
 
     # Generate IDs for each chunk
     ids = [make_doc_id(doc.page_content, doc.metadata) for doc in chunks]
 
-    # Insert into Pinecone (skip duplicates)
-    vs.add_documents(chunks, ids=ids)
+    # ✅ Use add_texts instead of add_documents
+    vs.add_texts(
+        texts=[doc.page_content for doc in chunks],
+        metadatas=[doc.metadata for doc in chunks],
+        ids=ids
+    )
 
     return len(chunks)
-

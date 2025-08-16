@@ -3,14 +3,14 @@ from flask_cors import CORS
 import re
 import datetime
 from dotenv import load_dotenv
-import os
 import google.generativeai as genai
 import nltk
 from nltk.tokenize import word_tokenize
-
-
+import os, hashlib
 from rag.ingest import ingest_parsed_logs
 from rag.retrieval import answer_question
+import json
+
 # Download NLTK resources at startup (only needs to run once)
 nltk.download('punkt')
 
@@ -20,6 +20,9 @@ app = Flask(__name__)
 CORS(app)
 
 genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
+
+UPLOAD_DIR = "uploads"
+os.makedirs(UPLOAD_DIR, exist_ok=True) 
 
 def detect_log_type(line):
     if 'sshd' in line:
@@ -125,10 +128,27 @@ def upload_file():
         return jsonify({'error': 'No file uploaded'}), 400
 
     file = request.files['file']
-    content = file.read().decode('utf-8').splitlines()
+    content = file.read().decode('utf-8')
 
+    # ✅ Unique fingerprint for file
+    file_hash = hashlib.sha256(content.encode("utf-8")).hexdigest()
+    file_path = os.path.join(UPLOAD_DIR, file_hash + ".log")
+    cache_path = os.path.join(UPLOAD_DIR, file_hash + ".json")
+
+    # ✅ If file already processed, return cached JSON
+    if os.path.exists(cache_path):
+        with open(cache_path, "r", encoding="utf-8") as f:
+            cached_response = json.load(f)
+        cached_response["message"] = "File already uploaded. Returning cached results."
+        return jsonify(cached_response)
+
+    # ✅ Save raw log file
+    with open(file_path, "w", encoding="utf-8") as f:
+        f.write(content)
+
+    # --- Parse logs ---
     parsed_logs = []
-    for line in content:
+    for line in content.splitlines():
         line_type = detect_log_type(line)
         if line_type == 'Apache':
             parsed_logs.append(parse_apache(line))
@@ -137,24 +157,35 @@ def upload_file():
         elif line_type == 'Auth':
             parsed_logs.append(parse_auth(line))
         else:
-            parsed_logs.append({"source": "Unknown", "timestamp": "", "level": "INFO", "message": line, "raw": line})
+            parsed_logs.append({
+                "source": "Unknown",
+                "timestamp": "",
+                "level": "INFO",
+                "message": line,
+                "raw": line
+            })
 
-    # Send parsed logs to Gemini LLM
+    # --- Gemini analysis ---
     gemini_analysis = analyze_with_gemini(parsed_logs)
 
-    # NEW: Ingest parsed logs to Pinecone (RAG store)
+    # --- Pinecone ingestion ---
     try:
         ingested = ingest_parsed_logs(parsed_logs)
     except Exception as e:
         ingested = 0
         print("Ingestion error:", e)
 
-    return jsonify({
+    response_data = {
         "parsed_logs": parsed_logs,
         "gemini_insights": gemini_analysis,
         "ingested_chunks": ingested
-    })
+    }
 
+    # ✅ Save JSON for reuse next time
+    with open(cache_path, "w", encoding="utf-8") as f:
+        json.dump(response_data, f)
+
+    return jsonify(response_data)
 
 @app.route("/query", methods=["POST"])
 def query():

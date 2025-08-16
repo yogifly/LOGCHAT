@@ -5,7 +5,7 @@ from langchain_core.output_parsers import JsonOutputParser
 from langchain_core.prompts import ChatPromptTemplate
 from .schema import QAResponse
 from .vector import get_vectorstore
-
+import asyncio
 
 def _format_docs(docs) -> str:
     lines = []
@@ -46,9 +46,14 @@ def build_chain():
     return prompt | llm | parser
 
 
-def answer_question(question: str, k: int = 8) -> Dict[str, Any]:
+def answer_question(question: str, k: int = 8):
     try:
-        # ✅ Ensure vectorstore uses correct embeddings
+        # ✅ Ensure event loop exists
+        try:
+            asyncio.get_running_loop()
+        except RuntimeError:
+            asyncio.set_event_loop(asyncio.new_event_loop())
+
         embeddings = GoogleGenerativeAIEmbeddings(
             model="models/embedding-001",
             google_api_key=os.getenv("GEMINI_API_KEY"),
@@ -56,7 +61,8 @@ def answer_question(question: str, k: int = 8) -> Dict[str, Any]:
 
         vs = get_vectorstore(embeddings=embeddings)
         retriever = vs.as_retriever(
-            search_type="mmr", search_kwargs={"k": k, "fetch_k": max(20, k * 2)}
+            search_type="mmr",
+            search_kwargs={"k": k, "fetch_k": max(20, k * 2)},
         )
         docs = retriever.invoke(question)
     except Exception as e:
