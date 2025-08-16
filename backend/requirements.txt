@@ -1,0 +1,11 @@
+flask
+flask-cors
+python-dotenv
+google-generativeai
+langchain==0.2.*
+langchain-community==0.2.*
+langchain-google-genai==1.0.*     # LangChain wrapper for Gemini
+langchain-pinecone==0.1.*         # Vector store wrapper
+pinecone-client==5.*              # Pinecone Python client v5
+pydantic==2.*
+nltk

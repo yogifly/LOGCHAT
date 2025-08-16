@@ -8,6 +8,9 @@ import google.generativeai as genai
 import nltk
 from nltk.tokenize import word_tokenize
 
+
+from rag.ingest import ingest_parsed_logs
+from rag.retrieval import answer_question
 # Download NLTK resources at startup (only needs to run once)
 nltk.download('punkt')
 
@@ -139,10 +142,40 @@ def upload_file():
     # Send parsed logs to Gemini LLM
     gemini_analysis = analyze_with_gemini(parsed_logs)
 
+    # NEW: Ingest parsed logs to Pinecone (RAG store)
+    try:
+        ingested = ingest_parsed_logs(parsed_logs)
+    except Exception as e:
+        ingested = 0
+        print("Ingestion error:", e)
+
     return jsonify({
         "parsed_logs": parsed_logs,
-        "gemini_insights": gemini_analysis
+        "gemini_insights": gemini_analysis,
+        "ingested_chunks": ingested
     })
+
+
+@app.route("/query", methods=["POST"])
+def query():
+    try:
+        data = request.get_json()
+        question = data.get("question")
+        if not question:
+            return jsonify({"error": "No question provided"}), 400
+        
+        print("\n=== Incoming Question ===")
+        print(question)
+
+        result = answer_question(question)
+        print("\n=== Answer Result ===")
+        print(result)
+
+        return jsonify(result)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({"error": str(e)}), 500
 
 
 def analyze_with_gemini(parsed_logs):
