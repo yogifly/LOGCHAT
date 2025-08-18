@@ -1,123 +1,98 @@
 from flask import Flask, request, jsonify
 from flask_cors import CORS
-import re
-import datetime
-from dotenv import load_dotenv
 import os
-import google.generativeai as genai
+import re
+import json
 import nltk
-from nltk.tokenize import word_tokenize
+from dotenv import load_dotenv
+import google.generativeai as genai
 
-
+from log_parser import parse_log_line
 from rag.ingest import ingest_parsed_logs
 from rag.retrieval import answer_question
-# Download NLTK resources at startup (only needs to run once)
-nltk.download('punkt')
 
+# --- NLTK setup (safe) ---
+try:
+    nltk.data.find('tokenizers/punkt')
+except LookupError:
+    try:
+        nltk.download('punkt', quiet=True)
+    except Exception:
+        pass
+
+# --- App setup ---
 load_dotenv()
-
 app = Flask(__name__)
 CORS(app)
 
-genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
+if GEMINI_API_KEY:
+    genai.configure(api_key=GEMINI_API_KEY)
 
-def detect_log_type(line):
-    if 'sshd' in line:
-        return 'Auth'
-    elif re.search(r'\[\w+ \d+ \d+:\d+:\d+\]', line) or 'error' in line.lower():
-        return 'Apache'
-    elif re.match(r'\d{2}/\d{2}/\d{4}', line) and ('Information' in line or 'Warning' in line or 'Error' in line):
-        return 'Windows'
-    return 'Unknown'
-
-def clean_and_tokenize(line):
-    tokens = word_tokenize(line)
-    tokens = [t for t in tokens if t.isalnum() or t in [':', '[', ']', '-', '.', ',', '/']]
-    return tokens
-
-def parse_apache(line):
-    tokens = clean_and_tokenize(line)
-    timestamp = ""
-    level = "INFO"
-    message = ""
-    # Find timestamp in tokens
-    if '[' in tokens and ']' in tokens:
-        try:
-            start = tokens.index('[')
-            end = tokens.index(']')
-            timestamp = ' '.join(tokens[start+1:end])
-        except:
-            timestamp = ""
-    # Find log level
-    levels = ['error', 'notice', 'warn', 'info', 'debug']
-    for l in levels:
-        if l in tokens:
-            level = l.upper()
-            break
-    # Message is everything after the last ']'
+def analyze_with_gemini(parsed_logs):
+    """
+    Ask Gemini to summarize/assess logs. Returns dict.
+    Falls back to simple structured summary if Gemini not configured.
+    """
     try:
-        last_bracket = max(idx for idx, t in enumerate(tokens) if t == ']')
-        message = ' '.join(tokens[last_bracket+1:])
-    except:
-        message = ' '.join(tokens)
-    return {
-        "source": "Apache",
-        "timestamp": timestamp,
-        "level": level,
-        "message": message.strip(),
-        "raw": line
-    }
+        if not GEMINI_API_KEY:
+            # Fallback: lightweight local summary
+            levels = [pl.get("level", "INFO") for pl in parsed_logs]
+            errors = sum(1 for l in levels if str(l).upper() in ("ERROR", "CRITICAL"))
+            warns  = sum(1 for l in levels if str(l).upper() in ("WARN", "WARNING"))
+            return {
+                "summary": f"Parsed {len(parsed_logs)} lines; {errors} errors, {warns} warnings.",
+                "insights": ["Local summary used (Gemini API key not set)."],
+                "anomalies": ["Counts only; no LLM analysis."],
+                "recommendations": ["Set GEMINI_API_KEY to enable deep analysis."],
+                "threat_level": "Medium" if errors > 0 else "Low"
+            }
 
-def parse_windows(line):
-    tokens = clean_and_tokenize(line)
-    timestamp = ""
-    level = "INFO"
-    message = ""
-    # Timestamp is usually the first token(s)
-    if len(tokens) > 2 and tokens[0].count('-') == 2:
-        timestamp = tokens[0]
-    # Level is often 'info', 'warning', 'error'
-    levels = ['info', 'warning', 'error']
-    for l in levels:
-        if l in tokens:
-            level = l.upper()
-            break
-    # Message is everything after the level
-    try:
-        level_idx = next(idx for idx, t in enumerate(tokens) if t.lower() == level.lower())
-        message = ' '.join(tokens[level_idx+1:])
-    except:
-        message = ' '.join(tokens)
-    return {
-        "source": "Windows",
-        "timestamp": timestamp,
-        "level": level,
-        "message": message.strip(),
-        "raw": line
-    }
+        model = genai.GenerativeModel("gemini-2.5-flash")
+        lines = []
+        for log in parsed_logs:
+            parts = [
+                str(log.get("timestamp", "")),
+                log.get("level", ""),
+                log.get("ip", ""),
+                log.get("template", "") or log.get("message", ""),
+            ]
+            lines.append(" | ".join(p for p in parts if p))
 
-def parse_auth(line):
-    tokens = clean_and_tokenize(line)
-    timestamp = ""
-    level = "INFO"
-    message = ""
-    # Timestamp is usually first 3 tokens (e.g., Mar 6 06:18:01)
-    if len(tokens) >= 3:
-        timestamp = ' '.join(tokens[:3])
-    # Level detection
-    if "failed" in tokens or "error" in tokens:
-        level = "ERROR"
-    elif "accepted" in tokens or "success" in tokens:
-        level = "SUCCESS"
-    # Message is everything after timestamp
-    message = ' '.join(tokens[3:])
-    return {
-        "source": "Auth",
-        "timestamp": timestamp,
-        "level": level.upper(),
-        "message": message.strip(),
-        "raw": line
-    }
+        prompt = f"""
+You are a log analysis assistant. The logs below are parsed via Drain3 (templates) with light enrichment.
+Return ONLY valid JSON with fields:
+- "summary": one paragraph
+- "insights": array of key findings
+- "anomalies": array of errors/warnings/unusual patterns
+- "recommendations": array of concrete actions
+- "threat_level": one of Low/Medium/High
+
+Logs:
+{os.linesep.join(lines)}
+"""
+        resp = model.generate_content(prompt)
+
+        # Extract safe text
+        text = ""
+        if hasattr(resp, "text") and resp.text:
+            text = resp.text.strip()
+        elif hasattr(resp, "candidates") and resp.candidates:
+            parts = resp.candidates[0].content.parts
+            if parts and hasattr(parts[0], "text"):
+                text = parts[0].text.strip()
+
+        # Strip code fences if any
+        if text.startswith("```"):
+            text = re.sub(r"^```(?:json)?", "", text, flags=re.I).strip()
+            text = re.sub(r"```$", "", text).strip()
+
+        return json.loads(text)
+    except Exception as e:
+        return {
+            "error": "Gemini analysis failed",
+            "exception": str(e)
+        }
 
 @app.route('/upload', methods=['POST'])
 def upload_file():
@@ -125,24 +100,16 @@ def upload_file():
         return jsonify({'error': 'No file uploaded'}), 400
 
     file = request.files['file']
-    content = file.read().decode('utf-8').splitlines()
+    try:
+        content = file.read().decode('utf-8', errors='ignore').splitlines()
+    except Exception:
+        return jsonify({'error': 'Unable to read file as UTF-8'}), 400
 
-    parsed_logs = []
-    for line in content:
-        line_type = detect_log_type(line)
-        if line_type == 'Apache':
-            parsed_logs.append(parse_apache(line))
-        elif line_type == 'Windows':
-            parsed_logs.append(parse_windows(line))
-        elif line_type == 'Auth':
-            parsed_logs.append(parse_auth(line))
-        else:
-            parsed_logs.append({"source": "Unknown", "timestamp": "", "level": "INFO", "message": line, "raw": line})
+    parsed_logs = [parse_log_line(line) for line in content if line.strip()]
 
-    # Send parsed logs to Gemini LLM
     gemini_analysis = analyze_with_gemini(parsed_logs)
 
-    # NEW: Ingest parsed logs to Pinecone (RAG store)
+    # Ingest to local RAG stub (safe). Replace with Pinecone in rag/ingest.py when ready.
     try:
         ingested = ingest_parsed_logs(parsed_logs)
     except Exception as e:
@@ -155,93 +122,18 @@ def upload_file():
         "ingested_chunks": ingested
     })
 
-
 @app.route("/query", methods=["POST"])
 def query():
     try:
-        data = request.get_json()
+        data = request.get_json(silent=True) or {}
         question = data.get("question")
         if not question:
             return jsonify({"error": "No question provided"}), 400
-        
-        print("\n=== Incoming Question ===")
-        print(question)
-
         result = answer_question(question)
-        print("\n=== Answer Result ===")
-        print(result)
-
         return jsonify(result)
     except Exception as e:
-        import traceback
-        traceback.print_exc()
         return jsonify({"error": str(e)}), 500
 
-
-def analyze_with_gemini(parsed_logs):
-    import json
-    model = genai.GenerativeModel("gemini-2.5-flash")
-
-    log_lines = "\n".join(
-        f"{log['timestamp']} | {log['source']} | {log['level']} | {log['message']}"
-        for log in parsed_logs
-    )
-
-    prompt = f"""
-You are a log analysis assistant. The logs below are from multiple sources (Windows, Apache, Auth). 
-Analyze them and return a JSON object with the following fields:
-
-- "summary": One-paragraph summary of the system state
-- "insights": Key findings from logs
-- "anomalies": Any errors, warnings, or unusual patterns
-- "recommendations": Suggestions to fix or improve
-- "threat_level": Low / Medium / High based on logs
-
-Respond ONLY in valid JSON format. Do NOT include markdown code fences.
-
-Logs:
-{log_lines}
-"""
-
-    try:
-        response = model.generate_content(prompt)
-
-        # 🔹 Debug print of raw Gemini response
-        print("\n========== RAW GEMINI RESPONSE ==========")
-        print(response)
-        print("=========================================\n")
-
-        # Use safe text extraction
-        response_text = ""
-        if hasattr(response, "text") and response.text:
-            response_text = response.text.strip()
-        elif hasattr(response, "candidates") and response.candidates:
-            parts = response.candidates[0].content.parts
-            if parts and hasattr(parts[0], "text"):
-                response_text = parts[0].text.strip()
-
-        # Remove ```json ... ``` wrappers if they exist
-        if response_text.startswith("```"):
-            response_text = re.sub(r"^```(?:json)?", "", response_text.strip(), flags=re.IGNORECASE)
-            response_text = re.sub(r"```$", "", response_text.strip())
-
-        response_text = response_text.strip()
-
-        return json.loads(response_text)
-
-    except json.JSONDecodeError as e:
-        return {
-            "error": "Gemini returned invalid JSON",
-            "raw_response": str(response) if 'response' in locals() else None,
-            "exception": str(e)
-        }
-    except Exception as e:
-        return {
-            "error": "Unexpected error",
-            "exception": str(e)
-        }
-
-
-
 if __name__ == '__main__':
-    app.run(debug=True)
+    # Use a fixed port for convenience
+    app.run(debug=True, port=5000)

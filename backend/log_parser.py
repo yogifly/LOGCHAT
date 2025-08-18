@@ -1,50 +1,75 @@
 import re
-import json
+from typing import Dict, Any, Optional
 
-def parse_apache_log(line):
-    # Apache Common Log Format
-    apache_pattern = re.compile(
-        r'(?P<ip>\S+) \S+ \S+ \[(?P<timestamp>.+?)\] "(?P<request>.+?)" (?P<status>\d{3}) (?P<size>\S+)'
-    )
-    match = apache_pattern.match(line)
-    if match:
-        return {
-            "log_type": "apache",
-            "timestamp": match.group("timestamp"),
-            "ip": match.group("ip"),
-            "event": match.group("request"),
-            "status": match.group("status"),
-            "size": match.group("size"),
-        }
-    return None
+from drain3 import TemplateMiner
+from drain3.template_miner_config import TemplateMinerConfig
+from drain3.file_persistence import FilePersistence
 
-def parse_auth_log(line):
-    # Example: Nov  3 10:23:01 hostname sshd[12345]: Failed password for user from 192.168.1.100 port 22 ssh2
-    auth_pattern = re.compile(
-        r'(?P<timestamp>\w{3} +\d+ \d+:\d+:\d+) .*? (?P<event_type>Failed|Accepted) .* from (?P<ip>\d+\.\d+\.\d+\.\d+)'
-    )
-    match = auth_pattern.search(line)
-    if match:
-        return {
-            "log_type": "auth",
-            "timestamp": match.group("timestamp"),
-            "ip": match.group("ip"),
-            "event": match.group("event_type"),
-            "status": "failure" if match.group("event_type") == "Failed" else "success"
-        }
-    return None
+# -------- Drain3 setup --------
+# Persistence so learned templates survive restarts
+PERSIST_FILE = "drain3_state.bin"
+persistence = FilePersistence(PERSIST_FILE)
 
-def parse_log_line(line):
-    result = parse_apache_log(line)
-    if not result:
-        result = parse_auth_log(line)
-    return result
+config = TemplateMinerConfig()
+# If you include a drain3.ini next to this file, it will be picked up here:
+try:
+    config.load("drain3.ini")
+except Exception:
+    config.load_default()
 
-def parse_log_file(filepath):
-    logs = []
-    with open(filepath, "r", encoding="utf-8", errors="ignore") as f:
-        for line in f:
-            parsed = parse_log_line(line)
-            if parsed:
-                logs.append(parsed)
-    return logs
+template_miner = TemplateMiner(persistence, config)
+
+# -------- Light enrichment regex (best-effort) --------
+RX_TIMESTAMP = re.compile(
+    r'(?P<ts>\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})?'
+    r'|\w{3}\s+\d{1,2}\s+\d{2}:\d{2}:\d{2}'
+    r'|\d{2}/\w{3}/\d{4}:\d{2}:\d{2}:\d{2}\s+[+-]\d{4})'
+)
+RX_IP = re.compile(r'(?P<ip>\b\d{1,3}(?:\.\d{1,3}){3}\b|\b[0-9a-fA-F:]{2,}\b)')
+RX_LEVEL = re.compile(r'\b(INFO|WARN|WARNING|ERROR|DEBUG|CRITICAL|FATAL)\b', re.IGNORECASE)
+
+def best_effort_extract(line: str) -> Dict[str, Optional[str]]:
+    ts = None
+    ip = None
+    level = None
+
+    m = RX_TIMESTAMP.search(line)
+    if m:
+        ts = m.group("ts")
+
+    m = RX_IP.search(line)
+    if m:
+        ip = m.group("ip")
+
+    m = RX_LEVEL.search(line)
+    if m:
+        level = m.group(1).upper()
+
+    return {"timestamp": ts or "", "ip": ip or "", "level": level or ""}
+
+def parse_log_line(line: str) -> Dict[str, Any]:
+    """
+    Universal parser:
+    - Uses Drain3 to mine/assign a template + cluster
+    - Adds best-effort timestamp, level, ip
+    - Always returns a consistent dictionary
+    """
+    line = (line or "").rstrip("\n")
+
+    d3 = template_miner.add_log_message(line) or {}
+    template = d3.get("template_mined")
+    cluster_id = d3.get("cluster_id")
+    params = d3.get("parameter_list") or d3.get("template_params") or []
+
+    enrich = best_effort_extract(line)
+
+    return {
+        "source": "Drain3",
+        "template": template or "",
+        "cluster_id": cluster_id if cluster_id is not None else -1,
+        "parameters": params,
+        "message": line,
+        "timestamp": enrich["timestamp"],
+        "level": enrich["level"] or ("ERROR" if "error" in line.lower() else ("WARN" if "warn" in line.lower() else "")),
+        "ip": enrich["ip"]
+    }

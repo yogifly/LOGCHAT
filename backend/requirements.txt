@@ -9,3 +9,4 @@ langchain-pinecone==0.1.*         # Vector store wrapper
 pinecone-client==5.*              # Pinecone Python client v5
 pydantic==2.*
 nltk
+drain3
