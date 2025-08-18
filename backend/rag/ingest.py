@@ -3,6 +3,7 @@ from langchain_core.documents import Document
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from .vector import get_vectorstore
 import hashlib
+import asyncio
 
 def build_documents(parsed_logs: List[Dict]) -> List[Document]:
     docs = []
@@ -40,6 +41,11 @@ def ingest_parsed_logs(parsed_logs: List[Dict]) -> int:
         return 0
 
     chunks = chunk_documents(docs)
+    # ✅ Ensure asyncio loop exists (fix for Flask threads)
+    try:
+        asyncio.get_running_loop()
+    except RuntimeError:
+        asyncio.set_event_loop(asyncio.new_event_loop())
     vs = get_vectorstore()
 
     # Generate IDs for each chunk
@@ -49,4 +55,3 @@ def ingest_parsed_logs(parsed_logs: List[Dict]) -> int:
     vs.add_documents(chunks, ids=ids)
 
     return len(chunks)
-

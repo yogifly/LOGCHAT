@@ -1,0 +1,255 @@
+
+/* Wrapper */
+.landing-wrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  background: #000;
+  color: #fff;
+  min-height: 100vh;
+  padding: 2rem 1rem;
+  font-family: "Consolas", "Courier New", monospace;
+}
+
+/* Intro Section */
+.intro-section {
+  text-align: center;
+  margin-bottom: 2rem;
+  max-width: 800px;
+}
+
+.welcome-title {
+  font-size: 2.5rem;
+  margin-bottom: 1rem;
+  color: #fff;
+}
+
+.intro-text {
+  font-size: 1.2rem;
+  margin-bottom: 0.5rem;
+  color: #bbb;
+}
+
+.intro-subtext {
+  font-size: 1rem;
+  color: #888;
+}
+
+.tech {
+  color: #0f0;
+  font-weight: bold;
+}
+
+/* Terminal Window */
+.terminal-window {
+  background: #111;
+  width: 100%;
+  max-width: 800px;
+  border-radius: 8px;
+  box-shadow: 0 0 20px rgba(255,255,255,0.1);
+  overflow: hidden;
+  margin-bottom: 2rem;
+}
+
+/* Terminal Header */
+.terminal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: #222;
+  padding: 0.4rem 0.8rem;
+  border-bottom: 1px solid #444;
+  font-family: "Courier New", monospace;
+  color: #eee;
+}
+
+.terminal-title {
+  font-size: 0.9rem;
+  color: #bbb;
+}
+
+.terminal-controls {
+  display: flex;
+  gap: 0.4rem;
+}
+
+.ctrl-btn {
+  background: transparent;
+  border: none;
+  color: #ccc;
+  font-size: 1rem;
+  cursor: pointer;
+  padding: 0.2rem 0.5rem;
+  transition: 0.2s;
+}
+
+.ctrl-btn:hover {
+  background: #333;
+  border-radius: 4px;
+}
+
+.ctrl-btn.close:hover {
+  color: #ff4d4d;
+}
+
+.ctrl-btn.maximize:hover {
+  color: #4dff4d;
+}
+
+.ctrl-btn.minimize:hover {
+  color: #ffd633;
+}
+
+
+/* Terminal Body */
+.terminal-body {
+  padding: 1rem;
+  font-size: 0.95rem;
+  line-height: 1.6;
+  color: #ddd;
+  word-wrap: break-word;
+}
+
+.highlight {
+  color: #0f0;
+  font-weight: bold;
+}
+
+.cmd {
+  color: #0ff;
+}
+
+/* Progress Bar */
+.progress-bar {
+  background: #333;
+  border-radius: 4px;
+  height: 12px;
+  margin: 0.5rem 0 1rem;
+  overflow: hidden;
+}
+.progress-fill {
+  background: #0f0;
+  height: 100%;
+  transition: width 0.4s ease;
+}
+
+/* Results */
+.results-list {
+  list-style: none;
+  padding-left: 1rem;
+  margin: 0.5rem 0 1rem;
+}
+.results-list li {
+  margin: 0.3rem 0;
+  color: #fff;
+}
+
+/* Chat Box */
+.chat-box {
+  display: flex;
+  align-items: center;
+  margin-top: 1rem;
+}
+.chat-input {
+  flex: 1;
+  margin-left: 0.5rem;
+  padding: 0.4rem 0.6rem;
+  background: #000;
+  color: #0f0;
+  border: 1px solid #444;
+  border-radius: 4px;
+  font-family: inherit;
+}
+.chat-input:focus {
+  outline: none;
+  border-color: #0f0;
+}
+
+/* CTA Button */
+.landing-btn {
+  background: transparent;
+  border: 2px solid #fff;
+  color: #fff;
+  padding: 0.75rem 1.5rem;
+  border-radius: 6px;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+.landing-btn:hover {
+  background: #fff;
+  color: #000;
+}
+
+/* Responsive */
+@media (max-width: 600px) {
+  .welcome-title {
+    font-size: 1.8rem;
+  }
+  .intro-text {
+    font-size: 1rem;
+  }
+  .terminal-body {
+    font-size: 0.85rem;
+  }
+  .landing-btn {
+    width: 100%;
+    text-align: center;
+  }
+}
+.report-window {
+  margin: 2rem auto;
+  padding: 1.5rem;
+  background: #111;
+  color: #eee;
+  border: 1px solid #333;
+  border-radius: 10px;
+  width: 90%;
+  max-width: 700px;
+  box-shadow: 0 0 15px rgba(0,0,0,0.5);
+  font-family: "Courier New", monospace;
+}
+
+.report-title {
+  font-size: 1.6rem;
+  margin-bottom: 1rem;
+  text-align: center;
+  color: #00ff99;
+}
+
+.report-section {
+  margin-bottom: 1.2rem;
+}
+
+.report-section h3 {
+  color: #00bfff;
+  margin-bottom: 0.5rem;
+}
+
+.report-section ul {
+  list-style: none;
+  padding-left: 1rem;
+}
+
+.report-section ul li {
+  margin: 0.3rem 0;
+}
+
+.download-btn {
+  display: block;
+  margin: 1rem auto 0;
+  padding: 0.6rem 1.5rem;
+  font-size: 1rem;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  background: #00ff99;
+  color: #111;
+  font-weight: bold;
+  transition: 0.3s;
+}
+
+.download-btn:hover {
+  background: #00cc77;
+}
+
