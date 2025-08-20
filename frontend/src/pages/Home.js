@@ -3,6 +3,10 @@
 import React, { useState } from "react";
 import axios from "axios";
 import "./Home.css";
+import { useNavigate } from "react-router-dom";
+
+// at top of Home component
+
 
 export default function Home() {
   const [file, setFile] = useState(null);
@@ -10,7 +14,7 @@ export default function Home() {
   const [question, setQuestion] = useState("");
   const [chat, setChat] = useState([]);
   const [loadingQa, setLoadingQa] = useState(false);
-
+const navigate = useNavigate();
   const handleFileChange = (e) => setFile(e.target.files[0]);
 
   const handleUpload = async () => {
@@ -77,6 +81,14 @@ export default function Home() {
           <button onClick={handleUpload} className="home-btn home-btn-green">
             Upload
           </button>
+          <button
+  onClick={() => navigate("/dashboard", { state: { logs } })}
+  disabled={!logs}
+  className="home-btn home-btn-blue"
+>
+  📊 View Dashboard
+</button>
+
 
           {logs ? (
             <div className="home-summary-card">
@@ -122,6 +134,7 @@ export default function Home() {
           ) : (
             <p className="home-placeholder">Upload a log file to see summary.</p>
           )}
+
         </div>
 
         {/* RIGHT PANEL */}
